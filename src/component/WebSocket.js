@@ -1,5 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { WebsocketContext } from '../contexts/WebsocketContext';
+import { useNavigate } from 'react-router-dom'; // Assuming you're using React Router for navigation
 
 export const WebSocket = () => {
   const [value, setValue] = useState('');
@@ -8,6 +9,7 @@ export const WebSocket = () => {
   const [users, setUsers] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [loggedInUserId, setLoggedInUserId] = useState(null); // State for logged-in user ID
+  const navigate = useNavigate();
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -46,7 +48,30 @@ export const WebSocket = () => {
     socket.on('onMessage', (newMessage) => {
       console.log('New message received:', newMessage);
       setMessages((prevMessages) => [...prevMessages, newMessage]);
+    
+      // Show browser notification
+      if (Notification.permission === 'granted') {
+        const senderName = newMessage.sender?.username || 'Unknown User';
+        const notification = new Notification('New Message', {
+          body: `Message from ${senderName}: ${newMessage.content}`,
+        });
+    
+        // On click, navigate to the message details for the sender
+        notification.onclick = () => {
+          const sender = users.find((user) => user.id === newMessage.sender.id);
+          if (sender) {
+            setSelectedUser(sender);
+            navigate(`/messages/${sender.id}`); // Assuming a route like /messages/:id
+    
+            // Bring the browser to the front
+            if (document.visibilityState === 'hidden') {
+              window.focus();
+            }
+          }
+        };
+      }
     });
+    
 
     return () => {
       socket.off('connect');
@@ -54,7 +79,14 @@ export const WebSocket = () => {
       socket.off('onMessages');
       socket.off('onMessage');
     };
-  }, [socket]);
+  }, [socket, users, navigate]);
+
+  useEffect(() => {
+    // Request notification permission
+    if (Notification.permission !== 'granted') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   const onSubmit = () => {
     if (!selectedUser) {
